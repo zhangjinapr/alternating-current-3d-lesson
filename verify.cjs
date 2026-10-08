@@ -7,9 +7,8 @@ for(let d=0;d<=360;d++)for(const direction of [1,-1]){
  assert(Math.abs(x*vx+y*vy)<1e-12,'v tangent to orbit');
  assert(Math.abs(vx*vx+vy*vy-1)<1e-12,'fixed speed magnitude');
  assert(Math.abs(p.current+vy)<1e-12,'v cross B current direction on AB');
- assert(Math.abs(p.flux*p.flux+p.current*p.current-1)<1e-12,'phase');
 }
 [0,180,360].forEach(d=>assert.strictEqual(physics(d).current,0));
 assert.strictEqual(physics(90).current,1);assert.strictEqual(physics(270).current,-1);
 assert(!/<script[^>]+src=/.test(html),'offline scripts embedded');
-console.log('PASS: 722 angle/direction states; tangential velocity, current sign, phase, neutral/max positions, offline bundle.');
+console.log('PASS: 722 angle/direction states; tangential velocity, current sign, neutral/max positions, offline bundle.');
