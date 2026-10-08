@@ -1,0 +1,18 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const html=fs.readFileSync('index.html','utf8');
+const fn=html.match(/function advance\(dt\)\{[^\n]+\}/)[0];
+const context={S:{angle:0,playing:true,speed:2,dir:1},update:()=>{}};
+vm.createContext(context);vm.runInContext(fn,context);
+for(let i=0;i<2400;i++)context.advance(1/60);
+assert(context.S.playing,'must stay playing across 10 rotations');
+assert(Math.abs(context.S.angle)<1e-8,'wrap returns to zero');
+context.S.dir=-1;
+for(let i=0;i<2400;i++)context.advance(1/60);
+assert(context.S.playing,'reverse must keep looping');
+assert(Math.abs(context.S.angle)<1e-8,'reverse wraps');
+context.S.playing=false;context.advance(1);assert.strictEqual(context.S.angle,0);
+assert(!html.includes('keyPause'),'automatic stop removed');
+assert(html.includes("rotor.add(ringGroup)"),'slip rings share rotor');
+assert(html.includes("ringGroup.add(stripe)"),'ring markers rotate with rings');
+assert(html.includes('frontProjection')&&html.includes('topProjection'));
+console.log('PASS: 10 forward + 10 reverse cycles keep playing, manual pause, synchronized ring markers and views.');
