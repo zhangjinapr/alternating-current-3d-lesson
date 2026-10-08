@@ -1,0 +1,25 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const T=require('./vendor/three.min.js');
+const source=fs.readFileSync('build.py','utf8');
+function target(rect){return {style:{},captures:new Set(),classList:{add(){},remove(){}},getBoundingClientRect:()=>rect,setPointerCapture(id){this.captures.add(id)},hasPointerCapture(id){return this.captures.has(id)},releasePointerCapture(id){this.captures.delete(id)}};}
+const canvas=target({left:0,top:0,width:500,height:500});
+const panel=target({left:230,top:50,width:600,height:125});
+const stage=target({left:0,top:0,width:970,height:470});
+const camera=new T.PerspectiveCamera(38,1,.1,100);camera.position.set(0,0,8);camera.lookAt(0,0,0);camera.updateMatrixWorld();
+const root=new T.Group(),child=new T.Group();child.position.set(1,2,3);root.add(child);
+const S={yaw:.55,pitch:.28,distance:8.5,angle:0,playing:false,dir:1,chartX:0,chartY:0};
+let cameraUpdates=0;
+const ctx={T,camera,root,S,$:id=>({view:canvas,chartPanel:panel,scene:stage,reverse:target({})}[id]),setCamera(){cameraUpdates++},update(){}};
+vm.createContext(ctx);
+vm.runInContext(source.slice(source.indexOf('let drag=null;const canvas='),source.indexOf("document.addEventListener('keydown'")),ctx);
+const event=(button,x,y)=>({button,clientX:x,clientY:y,pointerId:7,preventDefault(){}});
+canvas.onpointerdown(event(2,250,250));canvas.onpointermove(event(2,300,280));
+assert(root.position.x>0&&root.position.y<0,'right drag follows screen displacement');
+assert.strictEqual(cameraUpdates,0,'right drag must not rotate the view');
+root.updateMatrixWorld(true);const world=child.getWorldPosition(new T.Vector3());assert(world.clone().sub(child.position).distanceTo(root.position)<1e-10,'all generator components translate together');
+canvas.onpointerup(event(2,300,280));const pos=root.position.clone();canvas.onpointermove(event(2,340,300));assert(root.position.equals(pos),'released pointer stops translating');
+canvas.onpointerdown(event(0,250,250));canvas.onpointermove(event(0,270,280));assert(cameraUpdates>0,'left drag still rotates the view');assert(root.position.equals(pos),'left drag does not pan the generator');canvas.onpointercancel(event(0,270,280));
+panel.onpointerdown(event(2,400,100));panel.onpointermove(event(2,480,150));assert.strictEqual(S.chartX,80);assert.strictEqual(S.chartY,50);assert(panel.style.transform.includes('80px,50px'),'graph visually translates');
+panel.onpointermove(event(2,5000,5000));assert(S.chartX<=140&&S.chartY<=295,'graph stays within stage');panel.onpointerup(event(2,5000,5000));
+vm.runInContext(source.match(/function reset\(\)\{[^\n]+\}/)[0],ctx);ctx.reset();assert(root.position.length()===0&&S.chartX===0&&S.chartY===0&&panel.style.transform==='','reset restores both positions');
+console.log('PASS: right pointer pan, whole-generator translation, preserved left orbit, chart pan/clamp, release/cancel, reset.');
