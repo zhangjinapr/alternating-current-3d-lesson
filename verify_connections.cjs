@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert'),T=require('./ve
 const source=fs.readFileSync('build.py','utf8'),root=new T.Group(),rotor=new T.Group();root.add(rotor);
 const ctx={T,root,rotor,white:0xe5ebf0,vec:a=>new T.Vector3(...a)};vm.createContext(ctx);
 vm.runInContext(source.slice(source.indexOf('function mat('),source.indexOf('function wire('))+source.slice(source.indexOf('const conductorPaths=[];'),source.indexOf('function box('))+';this.paths=conductorPaths;',ctx);
-vm.runInContext(source.slice(source.indexOf('conductor([[0,.18,.90]'),source.indexOf('wire([0,0,-1.15]')),ctx);
+vm.runInContext(source.slice(source.indexOf('conductor([[0,.18,.90]'),source.indexOf('const rings=[],brushes=[];')),ctx);
 for(const c of ctx.paths){for(let j=1;j<c.path.curves.length;j++)assert(c.path.curves[j-1].getPoint(1).distanceTo(c.path.curves[j].getPoint(0))<1e-12,'continuous bends without gaps');for(const x of c.mesh.geometry.attributes.position.array)assert(Number.isFinite(x));}
 const [coil,red,blue]=ctx.paths;
 for(let angle=0;angle<360;angle+=5){rotor.rotation.z=angle*Math.PI/180;root.updateMatrixWorld(true);

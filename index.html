@@ -66,7 +66,6 @@ conductor([[0,.18,.90],[0,.18,.78],[0,1,.78],[0,1,-.78],[0,-1,-.78],[0,-1,.78],[
 // Each terminal continues into its own lead and penetrates its ring's conductive surface.
 conductor([[0,.18,.88],[0,.18,1.52],[0,.29,1.52]],0xf14359,.026,rotor,.035);
 conductor([[0,-.18,.88],[0,-.18,2.15],[0,-.29,2.15]],0x1b9fec,.026,rotor,.035);
-wire([0,0,-1.15],[0,0,2.55],0x596875,.065);
 const rings=[],brushes=[];
 for(const [z,color] of [[1.52,0xf14359],[2.15,0x1b9fec]]){
  const ringGroup=new T.Group();ringGroup.position.z=z;rotor.add(ringGroup);rings.push(ringGroup);
