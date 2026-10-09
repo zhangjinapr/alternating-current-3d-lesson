@@ -75,7 +75,16 @@ textLabel('A',[0,1.18,.85],'#ffffff',.28,rotor);textLabel('B',[0,1.18,-.88],'#ff
 // Stationary brushes and a closed, resistive external circuit.
 wire([0,-.45,1.52],[-.7,-.45,1.52],0xe29ca5,.021);wire([-.7,-.45,1.52],[-.7,-1.8,1.52],0xe29ca5,.021);wire([-.7,-1.8,1.52],[-.7,-1.8,2.55],0xe29ca5,.021);wire([-.7,-1.8,2.55],[-.27,-1.8,2.55],0xe29ca5,.021);
 wire([0,-.45,2.15],[.7,-.45,2.15],0x86c7e9,.021);wire([.7,-.45,2.15],[.7,-1.8,2.15],0x86c7e9,.021);wire([.7,-1.8,2.15],[.7,-1.8,2.55],0x86c7e9,.021);wire([.7,-1.8,2.55],[.27,-1.8,2.55],0x86c7e9,.021);
-box(0,-1.8,2.55,.54,.19,.19,0xc0a16a);textLabel('外电路（电阻）',[0,-2.08,2.6],'#b7c5d3',.20);
+// Axial resistor: rounded ceramic body, painted color bands and metallic leads.
+const resistor=new T.Group();resistor.position.set(0,-1.8,2.55);root.add(resistor);
+const resistorTextureCanvas=document.createElement('canvas');resistorTextureCanvas.width=64;resistorTextureCanvas.height=512;
+const resistorTextureContext=resistorTextureCanvas.getContext('2d');resistorTextureContext.fillStyle='#cbb589';resistorTextureContext.fillRect(0,0,64,512);
+for(const [fraction,color] of [[.23,'#673c25'],[.37,'#24201c'],[.51,'#b5312a'],[.77,'#b89845']]){resistorTextureContext.fillStyle=color;resistorTextureContext.fillRect(0,Math.round(fraction*512),64,27);}
+const resistorTexture=new T.CanvasTexture(resistorTextureCanvas);resistorTexture.colorSpace=T.SRGBColorSpace;
+const resistorProfile=[[.032,-.27],[.065,-.263],[.095,-.248],[.112,-.227],[.12,-.20],[.117,-.16],[.106,-.12],[.103,0],[.106,.12],[.117,.16],[.12,.20],[.112,.227],[.095,.248],[.065,.263],[.032,.27]].map(([radius,along])=>new T.Vector2(radius,along));
+const resistorBody=new T.Mesh(new T.LatheGeometry(resistorProfile,48),new T.MeshStandardMaterial({map:resistorTexture,color:0xffffff,roughness:.65,metalness:.02}));resistorBody.rotation.z=-Math.PI/2;resistor.add(resistorBody);
+for(const sign of [-1,1]){const lead=wire([sign*.245,0,0],[sign*.43,0,0],0xc7ccd1,.018,resistor);lead.material.roughness=.22;lead.material.metalness=.82;}
+textLabel('外电路（电阻）',[0,-2.08,2.6],'#b7c5d3',.20);
 textLabel('双滑环',[.65,.1,1.9],'#b7c5d3',.2);textLabel('电刷',[.5,-.6,2.25],'#b7c5d3',.18);
 const velocityArrows=[arrow([0,0,0],[1,0,0],.7,yellow,vGroup),arrow([0,0,0],[-1,0,0],.7,yellow,vGroup)];
 const velocityLabels=[textLabel('v',[0,0,0],'#ffd654',.28,vGroup,false),textLabel('v',[0,0,0],'#ffd654',.28,vGroup,false)];
