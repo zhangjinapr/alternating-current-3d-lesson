@@ -41,6 +41,16 @@ const root=new T.Group();scene.add(root);const rotor=new T.Group();root.add(roto
 const vec=a=>new T.Vector3(...a),white=0xe5ebf0,yellow=0xffd654,cyan=0xff5265;
 function mat(color,extra={}){return new T.MeshStandardMaterial({color,roughness:.38,metalness:.18,...extra});}
 function wire(a,b,color=white,r=.024,parent=root){const av=vec(a),bv=vec(b),d=bv.clone().sub(av);const m=new T.Mesh(new T.CylinderGeometry(r,r,d.length(),12),mat(color));m.position.copy(av.add(bv).multiplyScalar(.5));m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());parent.add(m);return m;}
+// A single rounded tube avoids visible seams between separate cylinders at bends.
+const conductorPaths=[];
+function conductor(points,color,r,parent,round=.055){
+ const p=points.map(vec),path=new T.CurvePath();let start=p[0];
+ for(let j=1;j<p.length-1;j++){const corner=p[j],radius=Math.min(round,corner.distanceTo(p[j-1])*.3,corner.distanceTo(p[j+1])*.3),before=corner.clone().add(p[j-1].clone().sub(corner).normalize().multiplyScalar(radius)),after=corner.clone().add(p[j+1].clone().sub(corner).normalize().multiplyScalar(radius));
+  if(start.distanceTo(before)>1e-8)path.add(new T.LineCurve3(start,before));path.add(new T.QuadraticBezierCurve3(before,corner,after));start=after;
+ }
+ path.add(new T.LineCurve3(start,p[p.length-1]));
+ const mesh=new T.Mesh(new T.TubeGeometry(path,Math.max(128,points.length*40),r,16,false),mat(color));parent.add(mesh);conductorPaths.push({mesh,path,points:p});return mesh;
+}
 function box(x,y,z,sx,sy,sz,color,parent=root){const m=new T.Mesh(new T.BoxGeometry(sx,sy,sz),mat(color));m.position.set(x,y,z);parent.add(m);return m;}
 function textLabel(text,position,color='#eef3f8',scale=.32,parent=root,struct=true){const c=document.createElement('canvas');c.width=Math.max(256,text.length*100);c.height=128;const cx=c.getContext('2d');cx.font='bold 90px Microsoft YaHei, Arial';cx.textAlign='center';cx.textBaseline='middle';cx.fillStyle=color;cx.fillText(text,c.width/2,64);const texture=new T.CanvasTexture(c);const m=new T.Sprite(new T.SpriteMaterial({map:texture,depthTest:false,transparent:true}));m.position.copy(vec(position));m.scale.set(scale*c.width/128,scale,1);parent.add(m);if(struct)labels.push(m);return m;}
 function arrow(origin,direction,len,color,parent){const a=new T.ArrowHelper(vec(direction).normalize(),vec(origin),len,color,.14,.085);a.line.material.depthTest=false;a.cone.material.depthTest=false;parent.add(a);return a;}
@@ -52,13 +62,12 @@ neutralPlane.rotation.y=Math.PI/2;neutralPlane.visible=false;root.add(neutralPla
 for(const y of [-.85,-.42,0,.42,.85])for(const z of [-.6,.6]){wire([-1.8,y,z],[1.8,y,z],0x637783,.006,field);arrow([.1,y,z],[1,0,0],.42,0x9cabb5,field);}
 textLabel('磁场 B',[.1,1.60,-.4],'#9eafbf',.24,field,false);
 // Coil rotates about z. AB and CD are parallel to the shaft.
-wire([0,1,.78],[0,1,-.78],white,.033,rotor);wire([0,1,-.78],[0,-1,-.78],white,.033,rotor);wire([0,-1,-.78],[0,-1,.78],white,.033,rotor);
-wire([0,1,.78],[0,.18,.78],white,.033,rotor);wire([0,-1,.78],[0,-.18,.78],white,.033,rotor);
-// Two insulated rotating leads, each connected to one continuous slip ring.
-wire([0,.18,.78],[0,.18,1.52],0xff6477,.022,rotor);wire([0,.18,1.52],[0,.29,1.52],0xff6477,.022,rotor);
-wire([0,-.18,.78],[0,-.18,2.15],0x37b4ff,.022,rotor);wire([0,-.18,2.15],[0,-.29,2.15],0x37b4ff,.022,rotor);
+conductor([[0,.18,.90],[0,.18,.78],[0,1,.78],[0,1,-.78],[0,-1,-.78],[0,-1,.78],[0,-.18,.78],[0,-.18,.90]],white,.033,rotor);
+// Each terminal continues into its own lead and penetrates its ring's conductive surface.
+conductor([[0,.18,.88],[0,.18,1.52],[0,.29,1.52]],0xf14359,.026,rotor,.035);
+conductor([[0,-.18,.88],[0,-.18,2.15],[0,-.29,2.15]],0x1b9fec,.026,rotor,.035);
 wire([0,0,-1.15],[0,0,2.55],0x596875,.065);
-const rings=[];
+const rings=[],brushes=[];
 for(const [z,color] of [[1.52,0xf14359],[2.15,0x1b9fec]]){
  const ringGroup=new T.Group();ringGroup.position.z=z;rotor.add(ringGroup);rings.push(ringGroup);
  // The marker is painted into the surface texture: no added geometry or raised edge.
@@ -69,12 +78,16 @@ for(const [z,color] of [[1.52,0xf14359],[2.15,0x1b9fec]]){
  const material=new T.MeshPhongMaterial({color:0xffffff,map:markedTexture,specular:0xffffff,shininess:110});
  const ring=new T.Mesh(new T.TorusGeometry(.29,.062,24,96),material);ringGroup.add(ring);
  ringGroup.userData={ring,markedTexture,baseColor:color};
- box(0,-.37,z,.19,.18,.16,0xa9b4be);
+ // Stationary carbon brush has a concave contact face against the outer ring surface.
+ const brushShape=new T.Shape();brushShape.moveTo(-.095,-.47);brushShape.lineTo(.095,-.47);
+ for(let j=0;j<=16;j++){const x=.095-j*.19/16;brushShape.lineTo(x,-Math.sqrt(.345*.345-x*x));}brushShape.closePath();
+ const brushGeometry=new T.ExtrudeGeometry(brushShape,{depth:.11,bevelEnabled:false,curveSegments:24});brushGeometry.translate(0,0,-.055);
+ const brush=new T.Mesh(brushGeometry,mat(0x909aa3,{roughness:.75,metalness:.08}));brush.position.z=z;root.add(brush);brushes.push(brush);
 }
 textLabel('A',[0,1.18,.85],'#ffffff',.28,rotor);textLabel('B',[0,1.18,-.88],'#ffffff',.28,rotor);textLabel('C',[0,-1.18,-.88],'#ffffff',.28,rotor);textLabel('D',[0,-1.18,.82],'#ffffff',.28,rotor);
 // Stationary brushes and a closed, resistive external circuit.
-wire([0,-.45,1.52],[-.7,-.45,1.52],0xe29ca5,.021);wire([-.7,-.45,1.52],[-.7,-1.8,1.52],0xe29ca5,.021);wire([-.7,-1.8,1.52],[-.7,-1.8,2.55],0xe29ca5,.021);wire([-.7,-1.8,2.55],[-.27,-1.8,2.55],0xe29ca5,.021);
-wire([0,-.45,2.15],[.7,-.45,2.15],0x86c7e9,.021);wire([.7,-.45,2.15],[.7,-1.8,2.15],0x86c7e9,.021);wire([.7,-1.8,2.15],[.7,-1.8,2.55],0x86c7e9,.021);wire([.7,-1.8,2.55],[.27,-1.8,2.55],0x86c7e9,.021);
+conductor([[0,-.45,1.52],[-.7,-.45,1.52],[-.7,-1.8,1.52],[-.7,-1.8,2.55],[-.27,-1.8,2.55]],0xe29ca5,.021,root);
+conductor([[0,-.45,2.15],[.7,-.45,2.15],[.7,-1.8,2.15],[.7,-1.8,2.55],[.27,-1.8,2.55]],0x86c7e9,.021,root);
 // Axial resistor: rounded ceramic body, painted color bands and metallic leads.
 const resistor=new T.Group();resistor.position.set(0,-1.8,2.55);root.add(resistor);
 const resistorTextureCanvas=document.createElement('canvas');resistorTextureCanvas.width=64;resistorTextureCanvas.height=512;
@@ -171,5 +184,5 @@ document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target
 function advance(dt){if(S.playing){S.angle=((S.angle+dt*45*S.speed*S.dir)%360+360)%360;update();}}
 function animate(t){requestAnimationFrame(animate);const dt=S.last?Math.min((t-S.last)/1000,.08):0;S.last=t;advance(dt);if($('autoRotate').checked&&!drag){S.yaw+=dt*.18;setCamera();}renderer.render(scene,camera);}
 new ResizeObserver(resize).observe($('scene'));window.addEventListener('resize',resize);setCamera();resize();update();requestAnimationFrame(animate);
-window.lesson={state:S,physics,jump,update,renderer,scene,rotor,neutralPlane,velocityArrows,currentArrows,rings,advance};
+window.lesson={state:S,physics,jump,update,renderer,scene,rotor,neutralPlane,velocityArrows,currentArrows,rings,brushes,conductorPaths,advance};
 </script></body></html>
