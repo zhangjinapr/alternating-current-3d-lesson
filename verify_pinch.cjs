@@ -1,0 +1,31 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const T=require('./vendor/three.min.js');
+const source=fs.readFileSync('build.py','utf8');
+function target(rect){return {style:{},captures:new Set(),classList:{add(){},remove(){}},getBoundingClientRect:()=>rect,setPointerCapture(id){this.captures.add(id)},hasPointerCapture(id){return this.captures.has(id)},releasePointerCapture(id){this.captures.delete(id)}};}
+const canvas=target({left:0,top:0,width:500,height:500});
+const panel=target({left:230,top:50,width:600,height:125});
+const stage=target({left:0,top:0,width:970,height:470});
+const camera=new T.PerspectiveCamera(38,1,.1,100);camera.position.set(0,0,8);camera.lookAt(0,0,0);camera.updateMatrixWorld();
+const root=new T.Group(),child=new T.Group();child.position.set(1,2,3);root.add(child);
+const S={yaw:.55,pitch:.28,distance:8.5,angle:0,playing:false,dir:1,chartX:0,chartY:0};
+let cameraUpdates=0;
+const ctx={T,camera,root,S,$:id=>({view:canvas,chartPanel:panel,scene:stage,reverse:target({})}[id]),setCamera(){cameraUpdates++},update(){}};
+vm.createContext(ctx);
+vm.runInContext(source.slice(source.indexOf('let drag=null;const canvas='),source.indexOf("document.addEventListener('keydown'")),ctx);
+const event=(button,x,y)=>({button,clientX:x,clientY:y,pointerId:7,preventDefault(){}});
+canvas.onpointerdown(event(2,250,250));canvas.onpointermove(event(2,300,280));
+assert(root.position.x>0&&root.position.y<0,'right drag follows screen displacement');
+assert.strictEqual(cameraUpdates,0,'right drag must not rotate the view');
+root.updateMatrixWorld(true);const world=child.getWorldPosition(new T.Vector3());assert(world.clone().sub(child.position).distanceTo(root.position)<1e-10,'all generator components translate together');
+canvas.onpointerup(event(2,300,280));const pos=root.position.clone();canvas.onpointermove(event(2,340,300));assert(root.position.equals(pos),'released pointer stops translating');
+canvas.onpointerdown(event(0,250,250));canvas.onpointermove(event(0,270,280));assert(cameraUpdates>0,'left drag still rotates the view');assert(root.position.equals(pos),'left drag does not pan the generator');canvas.onpointercancel(event(0,270,280));
+vm.runInContext(source.match(/function reset\(\)\{[^\n]+\}/)[0],ctx);ctx.reset();assert(root.position.length()===0,'reset restores generator position');
+
+const touch=(id,x,y)=>({...event(0,x,y),pointerType:'touch',pointerId:id});
+canvas.onpointerdown(touch(1,150,250));canvas.onpointerdown(touch(2,250,250));
+const yaw=S.yaw;canvas.onpointermove(touch(2,350,250));assert.strictEqual(S.distance,5.5,'spread fingers zooms in with lower bound');assert.strictEqual(S.yaw,yaw,'pinch must not rotate camera');
+canvas.onpointermove(touch(2,180,250));assert.strictEqual(S.distance,15,'pinch fingers zooms out with upper bound');
+canvas.onpointerup(touch(2,180,250));canvas.onpointermove(touch(1,170,250));assert(Math.abs(S.yaw-yaw+.14)<1e-10,'remaining finger continues rotation without jumping');
+canvas.onpointercancel(touch(1,170,250));const before=cameraUpdates;canvas.onpointermove(touch(1,190,250));assert.strictEqual(cameraUpdates,before,'cancelled touches stop updating camera');
+canvas.onpointerdown(touch(3,100,100));canvas.onpointerdown(touch(4,200,100));const initial=S.distance;canvas.onpointermove(touch(4,200,100));assert.strictEqual(S.distance,initial,'new pinch starts from current zoom');canvas.onlostpointercapture(touch(3,100,100));canvas.onpointerup(touch(4,200,100));
+console.log('PASS: two-finger zoom direction and limits; stable pinch camera; pinch-to-single-finger transition; cancel/lost capture; desktop right pan and left orbit.');
